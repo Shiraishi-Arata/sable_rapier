@@ -36,12 +36,17 @@ jobs:
         run: |
           cargo install cargo-ndk
 
-      - name: Setup Android NDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Google removed the legacy `tools` package; v3's default still asks
+          # for it and sdkmanager exits 1 with "Failed to find package 'tools'".
+          packages: 'platform-tools'
 
       - name: Install NDK
         run: |
           sdkmanager "ndk;27.3.13750724"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
           echo "ndk.dir=$ANDROID_HOME/ndk/27.3.13750724" >> local.properties
 
       - name: Run Gradle Task
