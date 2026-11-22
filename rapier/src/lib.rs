@@ -13,9 +13,9 @@ mod rope;
 mod scene;
 mod voxel_collider;
 
+use jni::JNIEnv;
 use jni::objects::{JClass, JDoubleArray, JIntArray};
 use jni::sys::{jboolean, jdouble, jint, jlong};
-use jni::JNIEnv;
 use rapier3d::glamx::{DVec3, Quat};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -97,7 +97,7 @@ use fern::colors::{Color, ColoredLevelConfig};
 use log::info;
 
 use crate::buoyancy::compute_buoyancy;
-use crate::collider::{LevelCollider, update_collider_aabb};
+use crate::collider::{LevelCollider, publish_center_of_mass, update_collider_aabb};
 use crate::dispatcher::SableDispatcher;
 use crate::event_handler::SableEventHandler;
 use crate::glamx::IVec3;
@@ -504,7 +504,9 @@ pub extern "system" fn Java_dev_ryanhcode_sable_physics_impl_rapier_Rapier3D_ini
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_ryanhcode_sable_physics_impl_rapier_Rapier3D_initialize_v1<'local>(
+pub extern "system" fn Java_dev_ryanhcode_sable_physics_impl_rapier_Rapier3D_initialize_v1<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     scene_id: jint,
@@ -638,9 +640,8 @@ jni_scene_fn! {
             .level_colliders
             .get_mut(&(id as LevelColliderID))
             .unwrap();
-        info.center_of_mass = Some(DVec3::new(x, y, z));
         let mut sim_data = scene.sim_data.write().unwrap();
-        update_collider_aabb(&mut sim_data, info);
+        publish_center_of_mass(&mut sim_data, info, DVec3::new(x, y, z));
     }
 }
 
@@ -711,6 +712,8 @@ jni_scene_fn! {
         .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
         .density(0.0)
         .collision_groups(LEVEL_GROUP)
+        // No voxel bounds/COM yet; `update_collider_aabb` enables it when ready.
+        .enabled(false)
         .build();
 
         let collider_handle = sim_data.collider_set.insert_with_parent(

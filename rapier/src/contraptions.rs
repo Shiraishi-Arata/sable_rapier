@@ -10,10 +10,10 @@ use rapier3d::math::Vec3;
 use rapier3d::pipeline::{ActiveEvents, ActiveHooks};
 use rapier3d::prelude::{RigidBodyHandle, RigidBodyVelocity};
 
-use crate::collider::LevelCollider;
+use crate::ActiveLevelColliderInfo;
+use crate::collider::{LevelCollider, publish_center_of_mass};
 use crate::groups::LEVEL_GROUP;
 use crate::scene::{LevelColliderID, SableSceneData};
-use crate::ActiveLevelColliderInfo;
 
 macro_rules! extract_jdouble_array {
     ($env:expr, $jarr:expr, $len:expr) => {{
@@ -77,6 +77,8 @@ crate::jni_scene_fn! {
             .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
             .density(0.0)
             .collision_groups(LEVEL_GROUP)
+            // No voxel bounds/COM yet; `update_collider_aabb` enables it when ready.
+            .enabled(false)
             .build();
 
         let collider_handle = sim_data.collider_set.insert_with_parent(
@@ -146,11 +148,15 @@ crate::jni_scene_fn! {
         collider.set_position_wrt_parent(isometry);
         // }
 
-        info.center_of_mass = Some(DVec3::new(
-            center_of_mass_arr[0],
-            center_of_mass_arr[1],
-            center_of_mass_arr[2],
-        ));
+        publish_center_of_mass(
+            &mut sim_data,
+            info,
+            DVec3::new(
+                center_of_mass_arr[0],
+                center_of_mass_arr[1],
+                center_of_mass_arr[2],
+            ),
+        );
 
         info.fake_velocities = Some(RigidBodyVelocity::new(
             Vec3::new(
